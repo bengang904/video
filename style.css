@@ -61,12 +61,21 @@ html, body, .shorts-container, .video-item, .info, .actions {
 .action-btn .material-icons{font-size:34px;color:#fff;}
 .action-btn span{font-size:13px;margin-top:4px;color:var(--muted);}
 
+/* 中心播放图标 */
 .center-play{
-  position:absolute;left:50%;top:50%;transform:translate(-50%,-50%);
-  font-size:70px;color:rgba(255,255,255,0.85);z-index:5;
+  position:absolute;
+  left:50%;
+  top:50%;
+  transform:translate(-50%,-50%);
+  cursor:pointer;
+  z-index:5;
 }
 .center-play.visible{opacity:1;transition:opacity .25s;}
 .center-play.hidden{opacity:0;transition:opacity .25s;}
+.center-play .material-icons{
+  font-size:70px;
+  color: rgba(255,255,255,0.85);
+}
 
 .progress-container{
   position:absolute;bottom:0;left:0;width:100%;height:5px;background:rgba(255,255,255,0.2);cursor:pointer;
@@ -74,7 +83,7 @@ html, body, .shorts-container, .video-item, .info, .actions {
 }
 .progress{height:100%;width:0%;background:var(--primary);}
 
-/* 滑动过渡动画 */
+/* 滑动动画 */
 .video-item.slide-in-up { transform: translate(-50%, 100%); animation: slideInUp 0.4s forwards; }
 .video-item.slide-out-up { transform: translate(-50%, 0); animation: slideOutUp 0.4s forwards; }
 .video-item.slide-in-down { transform: translate(-50%, -100%); animation: slideInDown 0.4s forwards; }
