@@ -3,41 +3,46 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width,initial-scale=1">
-<title>YouTube Shorts 滑动版</title>
+<link rel="shortcut icon" href="https://2024-10-24.zip/images/video.jpg">
+<link rel="icon" href="https://2024-10-24.zip/images/video.jpg">
+<link rel="apple-touch-icon-precomposed" href="https://2024-10-24.zip/images/video.jpg">
+<meta name="msapplication-TileImage" content="https://2024-10-24.zip/images/video.jpg">
+<title>Video Shorts</title>
 <link href="https://fonts.googleapis.com/css2?family=Roboto:wght@300;400;500;700&display=swap" rel="stylesheet">
 <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
 <link rel="stylesheet" href="style.css">
 </head>
 <body>
-
+<header>
+  <div class="search-bar">
+    <input type="text" id="searchInput" placeholder="搜索视频标题...">
+    <button id="searchBtn"><span class="material-icons">search</span></button>
+  </div>
+</header>
 <div class="shorts-container" id="shortsContainer">
   <div class="video-item" id="videoItem">
     <video id="videoPlayer" playsinline webkit-playsinline preload="metadata"></video>
-
     <div class="info">
       <div class="author">
-        <img src="https://yt3.ggpht.com/ytc/AKedOLTQAvatar=s48-c-k-c0x00ffffff-no-rj" alt="avatar">
+        <img src="https://2024-10-24.zip/images/video.jpg" alt="avatar">
         <div class="author-name" id="authorName"></div>
       </div>
       <div class="title" id="videoTitle"></div>
       <div class="tags" id="videoTags"></div>
-      <div class="music-info" id="musicToggle"><span class="material-icons">music_note</span><span id="musicName">音乐示例</span></div>
+      <div class="music-info" id="musicToggle"><span class="material-icons">music_note</span><span id="musicName"></span></div>
     </div>
-
     <div class="actions">
       <div class="action-btn" id="share-btn"><span class="material-icons">share</span><span>分享</span></div>
     </div>
-
     <div class="center-play visible" id="centerPlay">
       <span class="material-icons">play_arrow</span>
     </div>
-
     <div class="progress-container" id="progressContainer">
       <div class="progress" id="progress"></div>
     </div>
   </div>
 </div>
-
+<div id="noResult">没有匹配到视频</div>
 <script src="script.js"></script>
 </body>
 </html>
