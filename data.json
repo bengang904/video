@@ -1,0 +1,17 @@
+[
+    {
+        "title": "Long-form Video",
+        "type": "普通视频",
+        "link": "long-form?url=video.mp4",
+        "thumbnail": "long-form/logo.jpg"
+    },
+     {
+        "title": "Video Shorts",
+        "type": "短视频",
+        "link": "shorts",
+        "thumbnail": "shorts/logo.jpg"
+    }
+]
+
+
+
