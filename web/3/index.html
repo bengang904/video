@@ -1,0 +1,190 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>Video Shorts</title>
+    <link href="https://fonts.googleapis.com/icon?family=Material+Icons" rel="stylesheet">
+    <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+    <style>
+        :root { --primary: #ff0000; --bg: #0f0f0f; --text: #fff; --muted: #aaa; }
+        * { 
+            box-sizing: border-box; margin: 0; padding: 0; 
+            -webkit-tap-highlight-color: transparent; 
+            user-select: none; -webkit-user-select: none; -ms-user-select: none;
+        }
+        html, body { 
+            height: 100vh; height: 100svh; 
+            background: var(--bg); color: var(--text); 
+            font-family: sans-serif; overflow: hidden; 
+        }
+        .shorts-container { 
+            position: relative; width: 100%; 
+            height: 100vh; height: 100svh; 
+            display: flex; align-items: center; justify-content: center; 
+        }
+        .video-item { 
+            position: relative; width: 100%; max-width: 450px; 
+            height: 100%; background: #000; overflow: hidden; touch-action: none; 
+        }
+        video { width: 100%; height: 100%; object-fit: contain; pointer-events: none; }
+        .info { 
+            position: absolute; left: 16px; bottom: calc(45px + env(safe-area-inset-bottom)); 
+            z-index: 10; width: 75%; pointer-events: none; 
+        }
+        .author-name { font-weight: 500; font-size: 15px; text-shadow: 0 1px 2px #000; margin-bottom: 8px; }
+        .title { font-size: 16px; margin-bottom: 4px; text-shadow: 0 1px 2px #000; font-weight: bold; }
+        .description { font-size: 13px; color: var(--muted); text-shadow: 0 1px 2px #000; }
+        .actions { 
+            position: absolute; right: 12px; bottom: calc(50px + env(safe-area-inset-bottom)); 
+            z-index: 10; 
+        }
+        .action-btn { display: flex; flex-direction: column; align-items: center; cursor: pointer; }
+        .action-btn .material-icons { font-size: 32px; color: #fff; filter: drop-shadow(0 1px 2px rgba(0,0,0,0.5)); }
+        .action-btn span { font-size: 11px; margin-top: 2px; }
+        .center-play { position: absolute; left: 50%; top: 50%; transform: translate(-50%, -50%); opacity: 0; transition: 0.2s; pointer-events: none; z-index: 5; }
+        .v-paused .center-play { opacity: 1; }
+        .center-play .material-icons { font-size: 64px; color: rgba(255,255,255,0.8); filter: drop-shadow(0 0 10px rgba(0,0,0,0.5)); }
+        .progress-box { 
+            position: absolute; bottom: env(safe-area-inset-bottom); left: 0; 
+            width: 100%; height: 35px; 
+            display: flex; align-items: flex-end; cursor: pointer; z-index: 20;
+        }
+        .progress-bar { width: 100%; height: 4px; background: rgba(255,255,255,0.2); position: relative; }
+        .progress-fill { height: 100%; width: 0%; background: var(--primary); position: relative; }
+        .progress-fill::after {
+            content: ''; position: absolute; right: -6px; top: -4px; 
+            width: 12px; height: 12px; background: #fff; border-radius: 50%; 
+            display: none; box-shadow: 0 0 5px rgba(0,0,0,0.5);
+        }
+        .seeking .progress-fill::after { display: block; }
+        .seeking .progress-bar { height: 6px; }
+    </style>
+</head>
+<body>
+
+<div class="shorts-container">
+    <div class="video-item v-paused" id="pc">
+        <video id="v" playsinline webkit-playsinline loop crossorigin="anonymous"></video>
+        <div class="center-play"><span class="material-icons">play_arrow</span></div>
+
+        <div class="info">
+            <div id="m-artist" class="author-name">Connecting...</div>
+            <div id="m-title" class="title">Loading video...</div>
+            <div id="m-comment" class="description"></div>
+        </div>
+
+        <div class="actions">
+            <div class="action-btn" id="fb"><span class="material-icons">fullscreen</span><span>全屏</span></div>
+        </div>
+
+        <div class="progress-box" id="sb">
+            <div class="progress-bar">
+                <div class="progress-fill" id="sf"></div>
+            </div>
+        </div>
+    </div>
+</div>
+
+<script>
+    const v = document.getElementById('v'), pc = document.getElementById('pc');
+    const mTitle = document.getElementById('m-title'), mArtist = document.getElementById('m-artist'), mComment = document.getElementById('m-comment');
+    const sf = document.getElementById('sf'), sb = document.getElementById('sb');
+    
+    let isSeeking = false;
+    const streamSrc = new URLSearchParams(window.location.search).get('url') || 'test.mp4';
+
+    async function initPlayer() {
+        v.src = streamSrc;
+        try {
+            const res = await fetch(streamSrc);
+            if (!res.ok) throw new Error();
+            const blob = await res.blob();
+            const fileName = streamSrc.split('/').pop().split('?')[0];
+            jsmediatags.read(new File([blob], fileName), {
+                onSuccess: (tag) => {
+                    const t = tag.tags;
+                    mTitle.innerText = t.title || fileName;
+                    mArtist.innerText = t.artist || "Video User";
+                    mComment.innerText = t.comment ? (t.comment.text || t.comment) : (t.album || "");
+                },
+                onError: () => fallbackMetadata(fileName)
+            });
+        } catch (e) { fallbackMetadata(streamSrc.split('/').pop().split('?')[0]); }
+    }
+
+    function fallbackMetadata(name) {
+        mTitle.innerText = decodeURIComponent(name);
+        mArtist.innerText = "External Video";
+    }
+
+    const updateSeek = (clientX) => {
+        const rect = sb.getBoundingClientRect();
+        let pos = (clientX - rect.left) / rect.width;
+        pos = Math.max(0, Math.min(1, pos));
+        sf.style.width = (pos * 100) + '%';
+        if (v.duration) v.currentTime = pos * v.duration;
+    };
+
+    sb.addEventListener('touchstart', (e) => {
+        isSeeking = true;
+        pc.classList.add('seeking');
+        updateSeek(e.touches[0].clientX);
+    }, {passive: false});
+
+    window.addEventListener('touchmove', (e) => {
+        if (isSeeking) {
+            e.preventDefault();
+            updateSeek(e.touches[0].clientX);
+        }
+    }, {passive: false});
+
+    window.addEventListener('touchend', () => {
+        if (isSeeking) {
+            isSeeking = false;
+            pc.classList.remove('seeking');
+        }
+    });
+
+    sb.addEventListener('mousedown', (e) => {
+        isSeeking = true;
+        pc.classList.add('seeking');
+        updateSeek(e.clientX);
+        const move = (me) => updateSeek(me.clientX);
+        const up = () => {
+            isSeeking = false;
+            pc.classList.remove('seeking');
+            window.removeEventListener('mousemove', move);
+            window.removeEventListener('mouseup', up);
+        };
+        window.addEventListener('mousemove', move);
+        window.addEventListener('mouseup', up);
+    });
+
+    pc.onclick = (e) => {
+        if (e.target.closest('.action-btn') || e.target.closest('#sb')) return;
+        v.paused ? v.play().catch(()=>{}) : v.pause();
+    };
+
+    v.onplay = () => pc.classList.remove('v-paused');
+    v.onpause = () => pc.classList.add('v-paused');
+    v.ontimeupdate = () => { 
+        if (!isSeeking && v.duration > 0) {
+            sf.style.width = (v.currentTime / v.duration * 100) + '%'; 
+        }
+    };
+
+    document.getElementById('fb').onclick = (e) => {
+        e.stopPropagation();
+        if (pc.requestFullscreen) {
+            document.fullscreenElement ? document.exitFullscreen() : pc.requestFullscreen();
+        } else if (v.webkitEnterFullscreen) {
+            v.webkitEnterFullscreen();
+        }
+    };
+
+    document.addEventListener('contextmenu', e => e.preventDefault());
+    initPlayer();
+</script>
+</body>
+</html>

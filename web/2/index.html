@@ -1,0 +1,337 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+    <title>VIDEO Player</title>
+    <script src="https://cdn.jsdelivr.net/npm/hls.js@latest"></script>
+    <script src="https://cdn.jsdelivr.net/npm/jsmediatags@3.9.7/dist/jsmediatags.min.js"></script>
+    <style>
+        :root {
+            --gh-bg: #0d1117;
+            --gh-border: #30363d;
+            --gh-text: #f0f6fc;
+            --gh-blue: #2f81f7;
+            --hit-area: 32px;
+        }
+
+        body {
+            background-color: #010409;
+            color: var(--gh-text);
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+            margin: 0; display: flex; justify-content: center; align-items: center; 
+            min-height: 100dvh; overflow-y: auto;
+            -webkit-tap-highlight-color: transparent;
+            -webkit-user-select: none; user-select: none;
+        }
+
+        .gh-player {
+            width: 100%; max-width: 800px;
+            background: #000; border: 1px solid var(--gh-border);
+            position: relative; border-radius: 0; overflow: hidden;
+            -webkit-transform: translateZ(0);
+            margin: 20px 0;
+        }
+
+        .gh-header, .gh-controls {
+            transition: transform 0.3s cubic-bezier(0.4, 0, 0.2, 1), opacity 0.3s ease;
+            opacity: 1; z-index: 10;
+        }
+
+        .gh-header {
+            position: absolute; top: 0; left: 0; right: 0; padding: 12px 16px;
+            background: linear-gradient(rgba(0,0,0,0.8), transparent);
+            display: flex; align-items: center; pointer-events: none;
+        }
+
+        .hide-ui .gh-header { transform: translateY(-100%); opacity: 0; }
+        .hide-ui .gh-controls { transform: translateY(100%); opacity: 0; }
+        .hide-ui { cursor: none; }
+
+        .video-stage { width: 100%; aspect-ratio: 16 / 9; position: relative; background: #000; display: flex; align-items: center; cursor: pointer; }
+        video { width: 100%; height: 100%; display: block; object-fit: contain; pointer-events: none; }
+
+        .play-overlay, .loading-overlay {
+            position: absolute; top: 50%; left: 50%; transform: translate(-50%, -50%);
+            width: 64px; height: 64px; display: flex; align-items: center; justify-content: center;
+            pointer-events: none; z-index: 8;
+        }
+
+        .play-overlay { background: rgba(0,0,0,0.5); opacity: 0; transition: opacity 0.2s; }
+        .v-paused .play-overlay { opacity: 1; }
+        .play-overlay svg { fill: #fff; width: 32px; height: 32px; }
+
+        .loading-overlay { display: none; }
+        .v-loading .loading-overlay { display: flex; }
+        .spinner {
+            width: 40px; height: 40px; border: 3px solid rgba(255,255,255,0.2);
+            border-top-color: var(--gh-blue); border-radius: 50%;
+            animation: spin 0.8s linear infinite;
+        }
+        @keyframes spin { to { transform: rotate(360deg); } }
+
+        .gh-controls { background: var(--gh-bg); border-top: 1px solid var(--gh-border); position: relative; }
+        .slider-box { position: relative; width: 100%; height: 6px; background: #30363d; margin: 12px 0; }
+        .seek-tooltip {
+            position: absolute; bottom: 40px; left: 0;
+            background: rgba(13, 17, 23, 0.9); color: #fff;
+            padding: 4px 10px; border-radius: 4px; font-size: 12px;
+            font-family: ui-monospace, monospace;
+            pointer-events: none; display: none; transform: translateX(-50%);
+            white-space: nowrap; z-index: 100; border: 1px solid var(--gh-border);
+        }
+
+        .range-i {
+            -webkit-appearance: none; width: 100%; height: var(--hit-area); background: transparent;
+            position: absolute; top: 50%; left: 0; transform: translateY(-50%);
+            z-index: 11; margin: 0; cursor: pointer;
+        }
+        .range-i::-webkit-slider-thumb {
+            -webkit-appearance: none; width: 16px; height: 16px;
+            background: var(--gh-blue); border: 2px solid #fff; border-radius: 0;
+        }
+        .fill { position: absolute; top: 0; left: 0; height: 100%; background: var(--gh-blue); z-index: 1; pointer-events: none; }
+
+        .bar { display: flex; align-items: center; justify-content: space-between; padding: 0 8px 4px 8px; height: 44px; padding-bottom: env(safe-area-inset-bottom); }
+        .grp { display: flex; align-items: center; gap: 4px; }
+        .btn { background: transparent; border: none; color: var(--gh-text); padding: 8px; cursor: pointer; display: flex; align-items: center; transition: color 0.2s; }
+        .btn:hover { color: var(--gh-blue); }
+        .btn svg { fill: currentColor; width: 18px; height: 18px; }
+        .time { font-family: ui-monospace, monospace; font-size: 12px; color: #8b949e; margin-left: 8px; }
+        .speed-text { font-size: 11px; font-weight: bold; min-width: 32px; text-align: center; }
+
+        .meta-panel {
+            padding: 16px; background: var(--gh-bg); border-top: 1px solid var(--gh-border); display: none;
+        }
+        .meta-title { color: var(--gh-blue); font-weight: 600; margin-bottom: 8px; font-size: 15px; word-break: break-all; }
+        .meta-item { margin: 6px 0; color: #8b949e; font-size: 12px; display: flex; }
+        .meta-label { color: var(--gh-text); font-weight: 500; min-width: 60px; flex-shrink: 0; }
+        .meta-val { word-break: break-all; }
+    </style>
+</head>
+<body>
+
+<div class="gh-player v-paused" id="pc">
+    <div class="gh-header">
+        <svg style="width:20px;height:20px;margin-right:10px;fill:#fff" viewBox="0 0 16 16">
+            <path d="M0 4a2 2 0 0 1 2-2h12a2 2 0 0 1 2 2v8a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2V4zm6.79 1.907A.5.5 0 0 0 6 6.334v3.332a.5.5 0 0 0 .79.407l2.5-1.666a.5.5 0 0 0 0-.814l-2.5-1.667z"/>
+        </svg>
+        <span style="font-size: 13px; font-weight: 600;">VIDEO Player</span>
+    </div>
+
+    <div class="video-stage" id="vs">
+        <video id="v" playsinline webkit-playsinline></video>
+        <div class="loading-overlay"><div class="spinner"></div></div>
+        <div class="play-overlay">
+            <svg viewBox="0 0 16 16"><path d="M4.427 1.391l10.276 5.99c.453.264.453.96 0 1.224l-10.276 5.99c-.456.266-1.051-.067-1.051-.612V2.003c0-.545.595-.878 1.051-.612z"></path></svg>
+        </div>
+    </div>
+
+    <div class="gh-controls">
+        <div class="slider-box" id="sb">
+            <div class="seek-tooltip" id="st">0:00</div>
+            <input type="range" class="range-i" id="s" min="0" max="100" value="0" step="0.1">
+            <div class="fill" id="sf"></div>
+        </div>
+        <div class="bar">
+            <div class="grp">
+                <button class="btn" id="pb"><svg id="pi" viewBox="0 0 16 16"><path d="M4.427 1.391l10.276 5.99c.453.264.453.96 0 1.224l-10.276 5.99c-.456.266-1.051-.067-1.051-.612V2.003c0-.545.595-.878 1.051-.612z"></path></svg></button>
+                <div class="time"><span id="ct">0:00</span> / <span id="dt">0:00</span></div>
+            </div>
+            <div class="grp">
+                <button class="btn" id="spb" title="倍速"><span class="speed-text" id="spt">1.0x</span></button>
+                <button class="btn" id="pip" title="画中画">
+                    <svg viewBox="0 0 16 16"><path d="M0 3.5A1.5 1.5 0 011.5 2h13A1.5 1.5 0 0116 3.5v9a1.5 1.5 0 01-1.5 1.5h-13A1.5 1.5 0 010 12.5v-9zM1.5 3.5v9h13v-9h-13zM13 11H8V7h5v4z"></path></svg>
+                </button>
+                <button class="btn" id="fb" title="全屏">
+                    <svg viewBox="0 0 16 16"><path d="M10.25 2h3.25a.5.5 0 0 1 .5.5v3.25a.75.75 0 0 0 1.5 0V2a2 2 0 0 0-2-2h-3.25a.75.75 0 0 0 0 1.5zM16 13.75v-3.25a.75.75 0 0 0-1.5 0v3.25a.5.5 0 0 1-.5.5h-3.25a.75.75 0 0 0 0 1.5H14a2 2 0 0 0 2-2zM0 2.25v3.25a.75.75 0 0 0 1.5 0v-3.25a.5.5 0 0 1-.5-.5h3.25a.75.75 0 0 0 0-1.5H2a2 2 0 0 0-2 2zM5.75 16H2a2 2 0 0 0-2-2v-3.25a.75.75 0 0 0 1.5 0v3.25a.5.5 0 0 1 .5.5h3.25a.75.75 0 0 0 0 1.5z"></path></svg>
+                </button>
+            </div>
+        </div>
+    </div>
+    
+    <div id="metaPanel" class="meta-panel">
+        <div id="m-title" class="meta-title">加载中...</div>
+        <div class="meta-item"><span class="meta-label">艺术家</span><span id="m-artist" class="meta-val">-</span></div>
+        <div class="meta-item"><span class="meta-label">专辑</span><span id="m-album" class="meta-val">-</span></div>
+        <div class="meta-item"><span class="meta-label">描述</span><span id="m-comment" class="meta-val">-</span></div>
+    </div>
+</div>
+
+<script>
+    const v=document.getElementById('v'), vs=document.getElementById('vs'), pb=document.getElementById('pb'), pi=document.getElementById('pi'), s=document.getElementById('s'), sf=document.getElementById('sf'), ct=document.getElementById('ct'), dt=document.getElementById('dt'), fb=document.getElementById('fb'), pc=document.getElementById('pc'), spb=document.getElementById('spb'), spt=document.getElementById('spt'), pip=document.getElementById('pip'), sb=document.getElementById('sb'), st=document.getElementById('st');
+    
+    const m_path="M2.75 2.5a.75.75 0 01.75.75v9.5a.75.75 0 01-1.5 0v-9.5a.75.75 0 01.75-.75zm9.5 0a.75.75 0 01.75.75v9.5a.75.75 0 01-1.5 0v-9.5a.75.75 0 01.75-.75z", n_path="M4.427 1.391l10.276 5.99c.453.264.453.96 0 1.224l-10.276 5.99c-.456.266-1.051-.067-1.051-.612V2.003c0-.545.595-.878 1.051-.612z";
+    
+    let uiTimer, isSeeking = false, wasPlaying = false;
+    const speeds = [1.0, 1.5, 2.0, 0.5];
+    let curSpeedIdx = 0;
+
+    const streamSrc = new URLSearchParams(window.location.search).get('url');
+    async function initPlayer() {
+        if(!streamSrc) return;
+        if(v.canPlayType('application/vnd.apple.mpegurl')) { 
+            v.src = streamSrc; 
+        } else if(Hls.isSupported()){ 
+            const h=new Hls(); h.loadSource(streamSrc); h.attachMedia(v); 
+        } else { 
+            v.src = streamSrc; 
+        }
+        if (streamSrc.toLowerCase().includes('.mp4')) {
+            const metaPanel = document.getElementById('metaPanel');
+            const mTitle = document.getElementById('m-title');
+            const mArtist = document.getElementById('m-artist');
+            const mAlbum = document.getElementById('m-album');
+            const mComment = document.getElementById('m-comment');
+
+            metaPanel.style.display = 'block';
+            mTitle.innerText = "正在读取元数据...";
+
+            try {
+                const response = await fetch(streamSrc);
+                if (!response.ok) throw new Error('网络响应异常');
+                const blob = await response.blob();
+                const fileToRead = new File([blob], streamSrc.split('/').pop().split('?')[0]);
+
+                jsmediatags.read(fileToRead, {
+                    onSuccess: function(tag) {
+                        const t = tag.tags;
+                        mTitle.innerText = t.title || streamSrc.split('/').pop().split('?')[0];
+                        mArtist.innerText = t.artist || "未知";
+                        mAlbum.innerText = t.album || "未知";
+                        mComment.innerText = t.comment ? (t.comment.text || t.comment) : "无描述";
+                    },
+                    onError: function(error) {
+                        console.warn('Metadata tag read error:', error);
+                        fallbackMetadata(mTitle, mArtist);
+                    }
+                });
+            } catch (error) {
+                console.error('Fetch metadata error:', error);
+                fallbackMetadata(mTitle, mArtist);
+            }
+        }
+    }
+
+    function fallbackMetadata(titleEl, artistEl) {
+        titleEl.innerText = streamSrc.split('/').pop().split('?')[0];
+        artistEl.innerText = "远程视频 (无法读取标签)";
+    }
+    initPlayer();
+    const fmt=(sec)=>{ 
+        if(!sec || isNaN(sec)) return "0:00";
+        let h=Math.floor(sec/3600), m=Math.floor((sec%3600)/60), s=Math.floor(sec%60); 
+        return (h>0?h+":":"")+(m<10&&h>0?"0"+m:m)+":"+(s<10?"0"+s:s); 
+    };
+
+    const togglePlay = () => {
+        if(v.paused || v.ended){
+            if(v.ended) v.currentTime = 0;
+            v.play().catch(()=>{});
+        } else { v.pause(); }
+    };
+
+    v.onplaying = () => {
+        pi.querySelector('path').setAttribute('d', m_path); 
+        pc.classList.remove('v-paused');
+        resetUI();
+    };
+    v.onpause = () => {
+        pi.querySelector('path').setAttribute('d', n_path); 
+        pc.classList.add('v-paused');
+        resetUI();
+    };
+    
+    const resetUI = () => {
+        pc.classList.remove('hide-ui');
+        clearTimeout(uiTimer);
+        if(!v.paused) uiTimer = setTimeout(()=>pc.classList.add('hide-ui'), 2000);
+    };
+
+    const updateSeek = (e) => {
+        const rect = s.getBoundingClientRect();
+        const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+        let pos = (clientX - rect.left) / rect.width;
+        pos = Math.max(0, Math.min(0.998, pos));
+        const val = pos * 100;
+        s.value = val; sf.style.width = val + '%';
+        if(v.duration && !isNaN(v.duration)) {
+            v.currentTime = pos * v.duration;
+            ct.innerText = fmt(v.currentTime);
+        }
+    };
+
+    const handleTooltip = (e) => {
+        if (v.duration) {
+            const rect = s.getBoundingClientRect();
+            const clientX = (e.touches && e.touches[0]) ? e.touches[0].clientX : e.clientX;
+            let pos = (clientX - rect.left) / rect.width;
+            pos = Math.max(0, Math.min(1, pos));
+            st.innerText = fmt(pos * v.duration);
+            st.style.left = (pos * 100) + '%';
+            st.style.display = 'block';
+        }
+    };
+    s.addEventListener('mousemove', handleTooltip);
+    s.addEventListener('mouseleave', () => st.style.display = 'none');
+    s.addEventListener('touchstart', (e) => { handleTooltip(e); startSeek(e); }, {passive: false});
+    s.addEventListener('touchmove', (e) => { handleTooltip(e); if(isSeeking) updateSeek(e); resetUI(); }, {passive: false});
+    s.addEventListener('touchend', () => { st.style.display = 'none'; endSeek(); });
+    spb.onclick = (e) => {
+        e.stopPropagation();
+        curSpeedIdx = (curSpeedIdx + 1) % speeds.length;
+        v.playbackRate = speeds[curSpeedIdx];
+        spt.innerText = v.playbackRate.toFixed(1) + 'x';
+        resetUI();
+    };
+
+    pip.onclick = async (e) => {
+        e.stopPropagation();
+        try {
+            if (v !== document.pictureInPictureElement) await v.requestPictureInPicture();
+            else await document.exitPictureInPicture();
+        } catch (e) {}
+        resetUI();
+    };
+
+    const startSeek = (e) => { isSeeking = true; wasPlaying = !v.paused; updateSeek(e); resetUI(); };
+    const endSeek = () => { if(isSeeking) { isSeeking = false; if(wasPlaying) v.play(); } resetUI(); };
+
+    s.addEventListener('mousedown', (e) => { 
+        startSeek(e);
+        const move = (me) => { if(isSeeking) updateSeek(me); resetUI(); };
+        const up = () => { endSeek(); window.removeEventListener('mousemove', move); window.removeEventListener('mouseup', up); };
+        window.addEventListener('mousemove', move); window.addEventListener('mouseup', up);
+    });
+
+    v.ontimeupdate=()=>{ 
+        if(!isSeeking && v.duration){ 
+            let p=(v.currentTime/v.duration)*100;
+            s.value=p; sf.style.width=p+'%'; ct.innerText=fmt(v.currentTime); 
+        } 
+    };
+
+    v.onloadedmetadata=()=>{ dt.innerText=fmt(v.duration); };
+    pc.addEventListener('mousemove', resetUI);
+    vs.onclick = togglePlay;
+    pb.onclick = (e) => { e.stopPropagation(); togglePlay(); };
+
+    fb.onclick = async (e) => {
+    e.stopPropagation();
+    // 桌面端标准全屏
+    if (pc.requestFullscreen) {
+        if (!document.fullscreenElement) {
+            await pc.requestFullscreen();
+        } else {
+            await document.exitFullscreen();
+        }
+    } 
+    // iOS / Safari 专用全屏逻辑
+    else if (v.webkitEnterFullscreen) {
+        v.webkitEnterFullscreen();
+    }
+    resetUI();
+};
+</script>
+</body>
+</html>
