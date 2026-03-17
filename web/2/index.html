@@ -1,3 +1,4 @@
+
 <!DOCTYPE html>
 <html lang="zh-CN">
 <head>
@@ -318,7 +319,6 @@
 
     fb.onclick = async (e) => {
     e.stopPropagation();
-    // 桌面端标准全屏
     if (pc.requestFullscreen) {
         if (!document.fullscreenElement) {
             await pc.requestFullscreen();
@@ -326,12 +326,83 @@
             await document.exitFullscreen();
         }
     } 
-    // iOS / Safari 专用全屏逻辑
     else if (v.webkitEnterFullscreen) {
         v.webkitEnterFullscreen();
     }
     resetUI();
 };
+
+(function() {
+    const style = document.createElement('style');
+    style.innerHTML = `
+        #s:focus { outline: none !important; box-shadow: none !important; }
+        .slider-box:focus-within { outline: none !important; }
+        .seek-overlay {
+            position: absolute; top: 50%; transform: translateY(-50%);
+            background: rgba(0,0,0,0.5); border-radius: 50%;
+            width: 70px; height: 70px; display: flex; flex-direction: column;
+            align-items: center; justify-content: center; opacity: 0;
+            transition: opacity 0.2s; pointer-events: none; z-index: 20;
+        }
+        .seek-overlay svg { fill: white; width: 30px; height: 30px; }
+        .seek-overlay span { color: white; font-size: 12px; margin-top: 4px; font-family: sans-serif; font-weight: bold; }
+        .seek-show { opacity: 1; animation: seek-pop 0.4s ease forwards; }
+        
+        @keyframes seek-pop { 
+            0% { transform: translateY(-50%) scale(0.8); } 
+            50% { transform: translateY(-50%) scale(1.1); } 
+            100% { transform: translateY(-50%) scale(1); } 
+        }
+    `;
+    document.head.appendChild(style);
+    const createOverlay = (isLeft) => {
+        const div = document.createElement('div');
+        div.className = 'seek-overlay';
+        div.style[isLeft ? 'left' : 'right'] = '15%';
+        div.innerHTML = isLeft 
+            ? `<svg viewBox="0 0 24 24"><path d="M11 18V6l-8.5 6 8.5 6zm.5-6l8.5 6V6l-8.5 6z"/></svg><span>-5s</span>`
+            : `<svg viewBox="0 0 24 24"><path d="M4 18l8.5-6L4 6v12zm9-12v12l8.5-6L13 6z"/></svg><span>+5s</span>`;
+        document.getElementById('vs').appendChild(div);
+        return div;
+    };
+    const lOverlay = createOverlay(true);
+    const rOverlay = createOverlay(false);
+    let lTimer, rTimer;
+    const flash = (el, timer) => {
+        el.classList.remove('seek-show');
+        void el.offsetWidth; 
+        el.classList.add('seek-show');
+        clearTimeout(timer);
+        return setTimeout(() => el.classList.remove('seek-show'), 400);
+    };
+    window.addEventListener('keydown', (e) => {
+        if (!v.src && (!streamSrc || streamSrc === "")) return;
+        const step = 5; 
+        if (e.key === 'ArrowLeft') {
+            e.preventDefault();
+            v.currentTime = Math.max(0, v.currentTime - step);
+            lTimer = flash(lOverlay, lTimer);
+            if(typeof resetUI === 'function') resetUI();
+        } 
+        else if (e.key === 'ArrowRight') {
+            e.preventDefault();
+            v.currentTime = Math.min(v.duration, v.currentTime + step);
+            rTimer = flash(rOverlay, rTimer);
+            if(typeof resetUI === 'function') resetUI();
+        } 
+        else if (e.key === ' ') {
+            e.preventDefault();
+            if(typeof togglePlay === 'function') togglePlay();
+        }
+    });
+    window.addEventListener('keyup', (e) => {
+        if (e.key === 'ArrowLeft' || e.key === 'ArrowRight' || e.key === ' ') {
+            if (document.activeElement instanceof HTMLElement) {
+                document.activeElement.blur();
+            }
+        }
+    });
+})();
 </script>
 </body>
 </html>
