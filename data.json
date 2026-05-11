@@ -1,18 +1,28 @@
-[
-    {
-        "title": "横屏视频播放器",
-        "type": "播放器",
-        "link": "web/2/?url=video.mp4",
-        "thumbnail": "web/2/logo.png"
-    },
-     {
-        "title": "竖屏视频播放器",
-        "type": "播放器",
-        "link": "web/3/?url=video.mp4",
-        "thumbnail": "web/3/logo.png"
-    }
-]
-
-
-
-
+{
+    "videos": [
+        {
+            "type": "video",
+            "title": "普京在挠头",
+            "thumbnail": "/images/1.jpg",
+            "duration": "00:05",
+            "url": "/video/1.mp4",
+            "date": "2026-05-09"
+        },
+        {
+            "type": "video",
+            "title": "金正恩喷血",
+            "thumbnail": "/images/2.jpg",
+            "duration": "00:05",
+            "url": "/video/2.mp4",
+            "date": "2026-05-11"
+        },
+        {
+            "type": "short",
+            "title": "密码朋克宣言",
+            "thumbnail": "/images/3.jpg",
+            "duration": "00:20",
+            "url": "/video/3.mp4",
+            "date": "2026-05-10"
+        }
+    ]
+}
